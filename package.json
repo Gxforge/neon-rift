@@ -1,0 +1,22 @@
+{
+  "name": "neon-rift",
+  "private": true,
+  "version": "1.0.0",
+  "description": "NEON RIFT — roguelike de accion cyberpunk 2D para navegador y Android",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc && vite build",
+    "preview": "vite preview --host",
+    "assets": "python3 tools/build_assets.py && python3 tools/gen_font.py",
+    "deploy": "npm run build && wrangler pages deploy dist --project-name=neon-rift"
+  },
+  "devDependencies": {
+    "playwright": "^1.65.0",
+    "typescript": "^5.7.3",
+    "vite": "^8.3.6"
+  },
+  "dependencies": {
+    "phaser": "^4.2.1"
+  }
+}
