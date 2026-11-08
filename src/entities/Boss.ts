@@ -44,7 +44,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   }
 
   update(_t: number, delta: number) {
-    if (this.dead) return;
+    if (this.dead || !this.active || !this.scene) return;
     const dt = delta / 1000;
     const hpPct = this.hp / this.maxHp;
     this.phase = hpPct > 0.6 ? 0 : hpPct > 0.3 ? 1 : 2;
@@ -57,11 +57,17 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.glow.setAlpha(0.32 + this.phase * 0.1);
 
     // flotar
-    this.body.setVelocityY(Math.sin(this.scene.time.now / 700) * 26);
+    this.body.setVelocityY(Math.sin(this.scene.time.now / 900) * 14);
     this.moveTimer -= dt;
     if (this.moveTimer <= 0) {
       this.moveTimer = Phaser.Math.FloatBetween(1.2, 2.4);
       this.body.setVelocityX(Phaser.Math.Between(-60, 60) * (1 + this.phase * 0.4));
+    }
+    // se mantiene cerca del jugador para que la pelea sea justa
+    const py = (this.scene as unknown as { playerRef?: { y: number } }).playerRef?.y;
+    if (py !== undefined) {
+      const desired = py - 76;
+      this.body.setVelocityY(Phaser.Math.Clamp((desired - this.y) * 1.4, -46, 46));
     }
 
     this.atkTimer -= dt * (1 + this.phase * 0.45);
@@ -73,7 +79,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     // barra de vida (arriba de la pantalla)
     const g = this.hpBar;
     g.clear();
-    const w = 220, x = (480 - w) / 2, y = 6;
+    const w = 210, x = (480 - w) / 2 + 30, y = 24;
     g.fillStyle(0x080810, 0.85).fillRect(x - 2, y - 2, w + 4, 10);
     g.fillStyle(0x3d1a66, 1).fillRect(x, y, w, 6);
     const col = this.phase === 0 ? 0xe3279e : this.phase === 1 ? 0xff8b2b : 0xe0333f;

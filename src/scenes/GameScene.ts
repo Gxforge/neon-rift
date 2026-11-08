@@ -67,10 +67,18 @@ export class GameScene extends Phaser.Scene {
   private modsOffered = false;
   private transitioning = false;
   private solidGroup?: Phaser.Physics.Arcade.StaticGroup;
+  private playerBoltGroup?: Phaser.GameObjects.Group;
+  private enemyBoltGroup?: Phaser.GameObjects.Group;
+
+  private registerEnemyBolt(b: Projectile) {
+    if (this.enemyBoltGroup && !this.enemyBoltGroup.contains(b)) this.enemyBoltGroup.add(b);
+  }
 
   constructor() { super('Game'); }
 
   init(data: GameData) {
+    // reinicia el estado de fisicas/mundo al reintentar
+    this.children.removeAll(true);
     this.floor = data.floor ?? 1;
     this.prog = data.prog ?? new Progress();
     this.enemies = [];
@@ -93,6 +101,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   create() {
+    // limpia referencias de una partida anterior (la escena se reutiliza)
+    this.player = undefined as unknown as Player;
+    this.solidGroup = undefined;
+    this.playerBoltGroup = undefined;
+    this.enemyBoltGroup = undefined;
+    this.turret = undefined;
+
     this.physics.world.setBounds(0, 0, GAME_W, ROOM_H * TILE);
     this.cameras.main.setBounds(0, 0, GAME_W, GAME_H);
     this.cameras.main.setBackgroundColor(0x0a0618);
@@ -389,14 +404,16 @@ export class GameScene extends Phaser.Scene {
       const b = this.enemyBolts.get();
       const ang = Math.atan2(ty - sy, tx - sx);
       b.fire(sx, sy, Math.cos(ang) * 120, Math.sin(ang) * 120, dmg, false);
+      this.registerEnemyBolt(b);
     };
     this.enemies.push(e);
 
     // colisiones
     if (this.solidGroup) this.physics.add.collider(e, this.solidGroup);
-    this.physics.add.overlap(e, this.playerBolts.all, (obj) => {
-      const b = obj as unknown as Projectile;
-      if (!b.active || !b.friendly) return;
+    this.playerBoltGroup = this.playerBoltGroup ?? this.add.group();
+    this.physics.add.overlap(e, this.playerBoltGroup, (obj1, obj2) => {
+      const b = (obj1 instanceof Projectile ? obj1 : obj2) as Projectile;
+      if (!b || !b.active || !b.friendly) return;
       if (!b.registerHit(e)) return;
       this.hitEnemy(e, b.damage, false);
       this.impactFX(b.x, b.y);
@@ -407,7 +424,7 @@ export class GameScene extends Phaser.Scene {
 
   private spawnBossRoom() {
     const cx = GAME_W / 2;
-    const cy = FLOOR_Y - 130;
+    const cy = FLOOR_Y - 72;   // alcanzable con salto + espada
     Sfx.bossWarn();
     const warn = this.add.bitmapText(GAME_W / 2, GAME_H / 2 - 10, 'neon', 'ALERTA // OVERSEER', 8)
       .setScrollFactor(0).setOrigin(0.5).setDepth(64).setTint(0xff7ad9);
@@ -415,16 +432,19 @@ export class GameScene extends Phaser.Scene {
     this.time.delayedCall(2400, () => {
       warn.destroy();
       this.boss = new Boss(this, cx, cy, this.floor);
+      (this as unknown as { playerRef?: Player }).playerRef = this.player;
       this.boss.onShoot = (sx, sy, tx, ty, dmg, speed = 140) => {
         const b = this.enemyBolts.get();
         const ang = Math.atan2(ty - sy, tx - sx);
         b.fire(sx, sy, Math.cos(ang) * speed, Math.sin(ang) * speed, dmg, false);
+        this.registerEnemyBolt(b);
       };
       this.boss.onBurst = (sx, sy, count, dmg) => {
         for (let i = 0; i < count; i++) {
           const a = (Math.PI * 2 * i) / count;
           const b = this.enemyBolts.get();
           b.fire(sx, sy, Math.cos(a) * 100, Math.sin(a) * 100, dmg, false);
+          this.registerEnemyBolt(b);
         }
       };
       this.boss.onSlam = (sx, sy) => {
@@ -474,9 +494,10 @@ export class GameScene extends Phaser.Scene {
     };
     this.player.onStep = () => { this.dashTimer = Math.max(0, this.dashTimer); };
 
-    this.physics.add.overlap(this.player, this.enemyBolts.all, (obj) => {
-      const b = obj as unknown as Projectile;
-      if (!b.active || b.friendly) return;
+    this.enemyBoltGroup = this.add.group();
+    this.physics.add.overlap(this.player, this.enemyBoltGroup, (obj1, obj2) => {
+      const b = (obj1 instanceof Projectile ? obj1 : obj2) as Projectile;
+      if (!b || !b.active || b.friendly) return;
       if (this.player.invulnerable) return;
       b.registerHit(this.player);
       this.player.takeDamage(b.damage);
@@ -495,16 +516,19 @@ export class GameScene extends Phaser.Scene {
       const ang = (dir > 0 ? 0 : Math.PI) + spread;
       b.fire(px, py, Math.cos(ang) * 330, Math.sin(ang) * 330,
         Math.round(14 * stats.dmgMult), true, stats.pierce);
+      if (this.playerBoltGroup && !this.playerBoltGroup.contains(b)) this.playerBoltGroup.add(b);
     }
 
-    // golpe cuerpo a cuerpo (arco)
-    const range = 40 * stats.rangeMult + stats.longSword * 12;
-    const arc = new Phaser.Geom.Circle(x + dir * range * 0.45, y, range * 0.72);
+    // golpe cuerpo a cuerpo: cono frontal generoso (mejor sensacion en movil)
+    const range = 46 * stats.rangeMult + stats.longSword * 14;
     for (const e of [...this.enemies]) {
-      if (!e.active || (e as unknown as { dead?: boolean }).dead) continue;
-      if (Phaser.Geom.Intersects.CircleToRectangle(
-        { ...arc, x: arc.x, y: arc.y, radius: arc.radius } as unknown as Phaser.Geom.Circle,
-        new Phaser.Geom.Rectangle(e.x - 10, e.y - 14, 20, 28))) {
+      if (!e || !e.active || (e as unknown as { dead?: boolean }).dead) continue;
+      const dx = e.x - x;
+      const dy = e.y - y;
+      const dist = Math.hypot(dx, dy);
+      const reach = range + Math.max(10, (e.displayWidth || 16) * 0.5);
+      const inFront = Math.sign(dx) === dir || Math.abs(dx) < 14;
+      if (dist <= reach && inFront && Math.abs(dy) < reach * 0.95) {
         this.hitEnemy(e, Math.round(18 * stats.dmgMult), true);
       }
     }
@@ -512,7 +536,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private hitEnemy(e: Enemy, baseDmg: number, melee: boolean) {
-    if (!e.active || (e as unknown as { dead?: boolean }).dead) return;
+    if (!e || !e.active || (e as unknown as { dead?: boolean }).dead) return;
     const stats = this.prog.stats();
     const isCrit = Math.random() < stats.critChance;
     let dmg = Math.round(baseDmg * (isCrit ? stats.critMult : 1));
@@ -798,7 +822,8 @@ export class GameScene extends Phaser.Scene {
     this.ctrl.update();
     const inp = this.ctrl.state;
 
-    if (this.phase !== 'dead' && !this.paused && !this.scene.isActive('ModChoice')) {
+    if (this.player?.active && this.phase !== 'dead' && !this.paused
+        && !this.scene.isActive('ModChoice')) {
       this.player.update(time, delta, inp);
     }
 

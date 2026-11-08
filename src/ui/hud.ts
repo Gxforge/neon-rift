@@ -78,7 +78,7 @@ export class Hud {
     const pct = Phaser.Math.Clamp(prog.hp / prog.maxHp, 0, 1);
     const g = this.hpG;
     g.clear();
-    const x = 24, y = 8, w = 58, h = 6;
+    const x = 24, y = 8, w = 52, h = 6;
     g.fillStyle(0x1a1d34, 1).fillRect(x, y, w, h);
     const col = pct > 0.55 ? 0x2fd67b : pct > 0.25 ? 0xffd23f : 0xe0333f;
     g.fillStyle(col, 1).fillRect(x, y, Math.round(w * pct), h);

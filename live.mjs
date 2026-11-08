@@ -1,0 +1,15 @@
+import { chromium } from 'playwright';
+const b = await chromium.launch();
+const page = await b.newPage({ viewport: { width: 960, height: 540 } });
+const errs = [];
+page.on('pageerror', e => errs.push((e.message||'').slice(0,200)));
+await page.goto('https://neon-rift-11l.pages.dev/', { waitUntil: 'networkidle' });
+await page.waitForTimeout(2500);
+await page.screenshot({ path: '/tmp/live_menu.png' });
+await page.keyboard.press('Enter');
+await page.waitForTimeout(2000);
+await page.screenshot({ path: '/tmp/live_game.png' });
+await page.keyboard.down('d'); await page.waitForTimeout(500); await page.keyboard.up('d');
+await page.keyboard.press('j'); await page.waitForTimeout(400);
+console.log('EN VIVO — errores:', errs.length ? errs : 'NINGUNO');
+await b.close();

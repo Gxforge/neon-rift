@@ -129,21 +129,19 @@ export function buildRoom(scene: Phaser.Scene, node: RoomNode, neighbors: RoomNo
   for (const plat of solids) {
     if (placed >= nProps) break;
     if (plat.width < 3 * TILE) continue;
-    const tx = Math.floor((plat.x + rng.between(1, Math.max(1, plat.width / TILE - 2) * TILE) / TILE));
-    const ty = Math.floor(plat.y / TILE) - 1;
-    if (ty < 2) continue;
+    // posicion en PIXELES dentro de la plataforma
+    const margin = 10;
+    const px = plat.x + margin + rng.between(0, Math.max(0, plat.width - margin * 2));
+    const py = plat.y - 8;              // apoyado sobre la plataforma
     const kind = kinds[rng.between(0, kinds.length - 1)];
-    props.push({ x: tx * TILE + 8, y: ty * TILE + 8, index: T(kind) });
+    props.push({ x: Math.round(px), y: Math.round(py), index: T(kind) });
     placed++;
   }
-  // el resto en esquinas del suelo (lejos de las puertas)
+  // el resto en las esquinas del suelo (lejos de las puertas)
   for (let i = placed; i < nProps; i++) {
-    const side = i % 2 === 0 ? 3 : W - 4;
-    const tx = side + rng.between(-1, 1);
-    const ty = FLOOR_ROW - 1;
-    if (tx < 3 || tx > W - 4) continue;
+    const tx = i % 2 === 0 ? 3 : W - 4;
     const kind = kinds[rng.between(0, kinds.length - 1)];
-    props.push({ x: tx * TILE + 8, y: ty * TILE + 8, index: T(kind) });
+    props.push({ x: tx * TILE + 8, y: FLOOR_Y - 8, index: T(kind) });
   }
 
   // ------------- render a canvas -------------

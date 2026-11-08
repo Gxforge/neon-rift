@@ -53,30 +53,43 @@ export class MenuScene extends Phaser.Scene {
     void v;
 
     // opciones
-    const baseY = 160;
+    const baseY = 168;
     const defs: { label: string; action: () => void }[] = [
       { label: 'JUGAR', action: () => this.startRun() },
       { label: Store.data.muted ? 'SONIDO OFF' : 'SONIDO ON', action: () => this.toggleSound() },
       { label: 'CONTROLES', action: () => this.showControls() },
       { label: 'BORRAR DATOS', action: () => this.resetBest() },
     ];
-    this.options = defs.map((d, i) => ({ ...d, y: baseY + i * 22 }));
+    this.options = defs.map((d, i) => ({ ...d, y: baseY + i * 21 }));
 
     this.cursor = this.add.image(0, 0, 'diamond').setTint(0x19c8dc).setDepth(10);
     this.refreshSel();
 
     this.options.forEach((o, i) => {
-      const t = this.add.bitmapText(GAME_W / 2, o.y, 'neon', o.label, 8).setOrigin(0.5).setDepth(10)
-        .setTint(i === 0 ? 0x8ff7ff : 0x8a93b8);
-      t.setInteractive({ useHandCursor: true });
-      t.on('pointerover', () => { this.selIndex = i; this.refreshSel(); });
-      t.on('pointerdown', () => { Sfx.ui(); o.action(); });
+      const t = this.add.bitmapText(GAME_W / 2, o.y, 'neon', o.label, 8)
+        .setOrigin(0.5, 0.5).setDepth(10).setTint(i === 0 ? 0x8ff7ff : 0x8a93b8);
       t.setName('opt' + i);
+
+      // zona de toque generosa (mucho mas fiable en movil)
+      const hit = this.add.zone(GAME_W / 2, o.y, 240, 22)
+        .setDepth(11).setInteractive({ useHandCursor: true });
+      hit.on('pointerover', () => { this.selIndex = i; this.refreshSel(); });
+      hit.on('pointerdown', (_p: Phaser.Input.Pointer, _x: number, _y: number, ev: Phaser.Types.Input.EventData) => {
+        ev?.stopPropagation?.();
+        this.selIndex = i;
+        this.refreshSel();
+        Sfx.ui();
+        o.action();
+      });
     });
+
+    // boton grande JUGAR para movil: toda la franja inferior-izquierda
+    this.add.zone(GAME_W / 2, 160, 460, 30).setDepth(9).setInteractive()
+      .on('pointerdown', () => { Sfx.ui(); this.startRun(); });
 
     // record
     if (Store.data.bestFloor > 1) {
-      this.add.bitmapText(GAME_W / 2, 128, 'neon', `RECORD: PISO ${Store.data.bestFloor}`, 6)
+      this.add.bitmapText(GAME_W / 2, 136, 'neon', `RECORD: PISO ${Store.data.bestFloor}`, 6)
         .setOrigin(0.5).setTint(0xff7ad9).setDepth(10);
     }
 

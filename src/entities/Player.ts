@@ -56,7 +56,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }) {
     const dt = delta / 1000;
     const body = this.body;
-    if (!body || this.stateName === 'death') return;
+    if (!body || !this.active || this.stateName === 'death') return;
 
     this.invuln = Math.max(0, this.invuln - dt);
     this.attackTimer = Math.max(0, this.attackTimer - dt);
